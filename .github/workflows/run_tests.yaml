@@ -1,0 +1,26 @@
+---
+name: Run tests
+on: [push, pull_request]
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v2
+
+      - name: Prepare dependencies
+        run: |
+          sudo apt-get install -y libcurl4-openssl-dev \
+                                  libpam0g-dev
+
+      - name: Prepare googletest
+        run: |
+          cd test
+          curl -Lo googletest.tar.gz https://github.com/google/googletest/archive/release-1.8.1.tar.gz
+          tar -xzvf googletest.tar.gz
+
+      - name: Run tests
+        run: |
+          cd test
+          ./mock_server.py &
+          make
