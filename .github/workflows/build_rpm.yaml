@@ -1,0 +1,19 @@
+---
+name: Build RPM
+on: [push]
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v2
+
+      - name: Build RPMs
+        run: |
+          cd packaging/rpm
+          docker build -t pamoauth2device-rpm-build .
+          docker run --rm \
+                     -v \
+                     ${PWD}:/data \
+                     pamoauth2device-rpm-build \
+                     cp -r 'rpmbuild/RPMS /data'
