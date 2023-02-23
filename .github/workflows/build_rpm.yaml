@@ -16,4 +16,4 @@ jobs:
                      -v \
                      ${PWD}:/data \
                      pamoauth2device-rpm-build \
-                     cp -r 'rpmbuild/RPMS /data'
+                     cp -r rpmbuild/RPMS /data
