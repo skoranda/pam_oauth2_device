@@ -12,9 +12,10 @@ jobs:
         run: |
           cd packaging/rpm
           ls -l
+          mkdir -p output
           docker build -t pamoauth2device-rpm-build .
           docker run --rm \
                      -v \
-                     ${PWD}:/data \
+                     ${PWD}/output:/data \
                      pamoauth2device-rpm-build \
-                     /bin/sh -c 'ls -l data && cp -r rpmbuild/RPMS /data'
+                     /bin/sh -c 'ls -l /data && cp -r rpmbuild/RPMS /data'
