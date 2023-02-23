@@ -11,7 +11,6 @@ jobs:
       - name: Build RPMs
         run: |
           cd packaging/rpm
-          ls -l
           mkdir -p output
           chmod 777 output
           docker build -t pamoauth2device-rpm-build .
@@ -20,4 +19,4 @@ jobs:
                      ${PWD}/output:/data \
                      pamoauth2device-rpm-build \
                      cp -r rpmbuild/RPMS /data
-          ls -halt output
+          ls -R output
