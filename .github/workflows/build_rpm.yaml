@@ -20,3 +20,4 @@ jobs:
                      ${PWD}/output:/data \
                      pamoauth2device-rpm-build \
                      cp -r rpmbuild/RPMS /data
+          ls -halt output
