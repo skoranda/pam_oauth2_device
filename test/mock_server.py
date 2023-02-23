@@ -27,7 +27,8 @@ class MockServerRequestHandler(BaseHTTPRequestHandler):
                 response_data = {
                     'sub': 'YzQ4YWIzMzJhZjc5OWFkMzgwNmEwM2M5',
                     'preferred_username': 'jdoe',
-                    'name': 'Joe Doe'
+                    'name': 'Joe Doe',
+                    'groups': ['jdoe', 'groupB'],
                 }
                 self.send_response(200)
                 self.end_headers()
