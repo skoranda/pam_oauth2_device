@@ -18,4 +18,4 @@ jobs:
                      -v \
                      ${PWD}/output:/data \
                      pamoauth2device-rpm-build \
-                     /bin/sh -c 'ls -l /data && cp -r rpmbuild/RPMS /data'
+                     /bin/sh -c 'ls -l / && cp -r rpmbuild/RPMS /data'
