@@ -162,9 +162,9 @@ std::string DeviceAuthResponse::get_prompt(const int qr_ecc = 0)
                << std::endl
                << getQr((complete_url ? verification_uri_complete : verification_uri).c_str(), qr_ecc)
                << std::endl
-               << "Hit enter when you authenticate\n";
+               << "Hit enter after you have authenticated\n";
     } else {
-        prompt << "Hit enter when you authenticate\n";
+        prompt << "Hit enter after you have authenticated\n";
     }
     return prompt.str();
 }
