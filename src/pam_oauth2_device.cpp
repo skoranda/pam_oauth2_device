@@ -12,6 +12,8 @@
 #include <string>
 #include <regex>
 
+#include "syslog.h"
+
 #include "include/config.hpp"
 #include "include/metadata.hpp"
 #include "include/ldapquery.h"
@@ -49,6 +51,7 @@ public:
     const char *what() const throw()
     {
         printf("Base error");
+	syslog(LOG_AUTH|LOG_DEBUG, "Base error");
         return "Base Error";
     }
 };
@@ -59,6 +62,7 @@ public:
     const char *what() const throw()
     {
         printf("PAM error");
+	syslog(LOG_AUTH|LOG_DEBUG, "PAM error");
         return "PAM Error";
     }
 };
@@ -69,6 +73,7 @@ public:
     const char *what() const throw()
     {
         printf("Network error");
+	syslog(LOG_AUTH|LOG_DEBUG, "Network error");
         return "Network Error";
     }
 };
@@ -79,6 +84,7 @@ public:
     const char *what() const throw()
     {
         printf("Timeout error");
+	syslog(LOG_AUTH|LOG_DEBUG, "Timeout error");
         return "Timeout Error";
     }
 };
@@ -89,6 +95,7 @@ public:
     const char *what() const throw()
     {
         printf("Response error");
+	syslog(LOG_AUTH|LOG_DEBUG, "Response error");
         return "Response Error";
     }
 };
@@ -187,8 +194,10 @@ void make_authorization_request(const Config config,
     std::string readBuffer;
 
     curl = curl_easy_init();
-    if (!curl)
+    if (!curl) {
+	syslog(LOG_AUTH|LOG_DEBUG, "curl init failed");
         throw NetworkError();
+    }
     std::string params = std::string("client_id=") + client_id + "&scope=" + scope;
     if (config.http_basic_auth) {
         curl_easy_setopt(curl, CURLOPT_USERNAME, client_id);
@@ -202,8 +211,10 @@ void make_authorization_request(const Config config,
     curl_easy_setopt(curl, CURLOPT_WRITEDATA, &readBuffer);
     res = curl_easy_perform(curl);
     curl_easy_cleanup(curl);
-    if (res != CURLE_OK)
+    if (res != CURLE_OK) {
+	syslog(LOG_AUTH|LOG_DEBUG, "curl not ok");
         throw NetworkError();
+    }
     try
     {
         if (config.client_debug) printf("Response to authorizaation request: %s", readBuffer.c_str());
@@ -218,6 +229,8 @@ void make_authorization_request(const Config config,
     }
     catch (json::exception &e)
     {
+	syslog(LOG_AUTH|LOG_DEBUG, "json exception caught");
+	syslog(LOG_AUTH|LOG_DEBUG, e.what());
         throw ResponseError();
     }
 }
@@ -229,8 +242,8 @@ void poll_for_token(const Config config,
                     const char *device_code,
                     std::string &token)
 {
-    int timeout = 300,
-        interval = 3;
+    int timeout = 3000,
+        interval = 1;
     CURL *curl;
     CURLcode res;
     json data;
@@ -250,13 +263,16 @@ void poll_for_token(const Config config,
         timeout -= interval;
         if (timeout < 0)
         {
+            syslog(LOG_AUTH|LOG_DEBUG, "timeout < 0");
             throw TimeoutError();
         }
         std::string readBuffer;
         std::this_thread::sleep_for(std::chrono::seconds(interval));
         curl = curl_easy_init();
-        if (!curl)
+        if (!curl) {
+            syslog(LOG_AUTH|LOG_DEBUG, "curl init error 2");
             throw NetworkError();
+	}
         curl_easy_setopt(curl, CURLOPT_URL, token_endpoint);
         if (config.http_basic_auth) {
             curl_easy_setopt(curl, CURLOPT_USERNAME, client_id);
@@ -268,8 +284,10 @@ void poll_for_token(const Config config,
 
         res = curl_easy_perform(curl);
         curl_easy_cleanup(curl);
-        if (res != CURLE_OK)
+        if (res != CURLE_OK) {
+            syslog(LOG_AUTH|LOG_DEBUG, "curl not ok 2");
             throw NetworkError();
+	}
         try
         {
             if (config.client_debug) printf("Response from token poll: %s\n", readBuffer.c_str());
@@ -289,11 +307,14 @@ void poll_for_token(const Config config,
             }
             else
             {
+                syslog(LOG_AUTH|LOG_DEBUG, "throwing a response error now");
                 throw ResponseError();
             }
         }
         catch (json::exception &e)
         {
+            syslog(LOG_AUTH|LOG_DEBUG, "caught json exception");
+            syslog(LOG_AUTH|LOG_DEBUG, e.what());
             throw ResponseError();
         }
     }
@@ -311,8 +332,10 @@ void get_userinfo(const Config &config,
     std::string readBuffer;
 
     curl = curl_easy_init();
-    if (!curl)
+    if (!curl) {
+        syslog(LOG_AUTH|LOG_DEBUG, "curl init error 3");
         throw NetworkError();
+    }
     curl_easy_setopt(curl, CURLOPT_URL, userinfo_endpoint);
     curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION, WriteCallback);
     curl_easy_setopt(curl, CURLOPT_WRITEDATA, &readBuffer);
@@ -325,11 +348,14 @@ void get_userinfo(const Config &config,
 
     res = curl_easy_perform(curl);
     curl_easy_cleanup(curl);
-    if (res != CURLE_OK)
+    if (res != CURLE_OK) {
+        syslog(LOG_AUTH|LOG_DEBUG, "curl not ok 3");
         throw NetworkError();
+    }
     try
     {
         if (config.client_debug) printf("Userinfo token: %s\n", readBuffer.c_str());
+	if (config.client_debug) syslog(LOG_AUTH|LOG_DEBUG, "Userinfo token: %s\n", readBuffer.c_str());
         auto data = json::parse(readBuffer);
         userinfo->sub = data.at("sub");
         userinfo->username = data.at(username_attribute);
@@ -338,6 +364,8 @@ void get_userinfo(const Config &config,
     }
     catch (json::exception &e)
     {
+        syslog(LOG_AUTH|LOG_DEBUG, "caught json exception");
+        syslog(LOG_AUTH|LOG_DEBUG, e.what());
         throw ResponseError();
     }
 }
@@ -355,8 +383,10 @@ void show_prompt(pam_handle_t *pamh,
     std::string prompt;
 
     pam_err = pam_get_item(pamh, PAM_CONV, (const void **)&conv);
-    if (pam_err != PAM_SUCCESS)
+    if (pam_err != PAM_SUCCESS) {
+        syslog(LOG_AUTH|LOG_DEBUG, "throwing a PAM error");
         throw PamError();
+    }
     prompt = device_auth_response->get_prompt(qr_error_correction_level);
     msg.msg_style = PAM_PROMPT_ECHO_OFF;
     msg.msg = prompt.c_str();
@@ -387,56 +417,64 @@ bool is_authorized(Config *config,
     Metadata metadata;
 
     // Try and see if any IAM groups the user is a part of are also linked to the OpenStack project this VM is a part of
-    if (config->cloud_access)
-    {
-
-        try
-        {
-            metadata.load("/mnt/context/openstack/latest/meta_data.json");
-        }
-        catch (json::exception &e)
-        {
-            // An exception means it's probably safer to not allow access
-            throw PamError();
-        }
-
-        CURL *curl;
-        CURLcode res;
-        std::string readBuffer;
-
-        curl = curl_easy_init();
-        if (!curl)
-            throw NetworkError();
-        curl_easy_setopt(curl, CURLOPT_URL, config->cloud_endpoint.append("/").append(metadata.project_id).c_str());
-        curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION, WriteCallback);
-        curl_easy_setopt(curl, CURLOPT_WRITEDATA, &readBuffer);
-
-        res = curl_easy_perform(curl);
-        curl_easy_cleanup(curl);
-        if (res != CURLE_OK)
-            throw NetworkError();
-        try
-        {
-            if (config->client_debug) printf(readBuffer.c_str());
-            auto data = json::parse(readBuffer);
-            std::vector<std::string> groups = data.at("groups").get<std::vector<std::string>>();
-            for (auto &group : groups)
-            {
-                for (auto &user_group : userinfo->groups)
-                {
-                    if (group.compare(user_group) == 0 && config->cloud_username.compare(std::string(username_local) + config->local_username_suffix) == 0)
-                    {
-                        // One of the users IRIS IAM groups matches one of the project groups, and they are trying to login with a valid username
-                        return true;
-                    }
-                }
-            }
-        }
-        catch (json::exception &e)
-        {
-            throw ResponseError();
-        }
-    }
+//    if (config->cloud_access)
+//    {
+//
+//        try
+//        {
+//            metadata.load("/mnt/context/openstack/latest/meta_data.json");
+//        }
+//        catch (json::exception &e)
+//        {
+//            // An exception means it's probably safer to not allow access
+//            syslog(LOG_AUTH|LOG_DEBUG, "caught a JSON exception 1");
+//            syslog(LOG_AUTH|LOG_DEBUG, e.what());
+//            throw PamError();
+//        }
+//
+//        CURL *curl;
+//        CURLcode res;
+//        std::string readBuffer;
+//
+//        curl = curl_easy_init();
+//        if (!curl) {
+//            syslog(LOG_AUTH|LOG_DEBUG, "curl init error 4");
+//            throw NetworkError();
+//	}
+//        curl_easy_setopt(curl, CURLOPT_URL, config->cloud_endpoint.append("/").append(metadata.project_id).c_str());
+//        curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION, WriteCallback);
+//        curl_easy_setopt(curl, CURLOPT_WRITEDATA, &readBuffer);
+//
+//        res = curl_easy_perform(curl);
+//        curl_easy_cleanup(curl);
+//        if (res != CURLE_OK) {
+//            syslog(LOG_AUTH|LOG_DEBUG, "curl not ok 4");
+//            throw NetworkError();
+//	}
+//        try
+//        {
+//            if (config->client_debug) printf(readBuffer.c_str());
+//            auto data = json::parse(readBuffer);
+//            std::vector<std::string> groups = data.at("groups").get<std::vector<std::string>>();
+//            for (auto &group : groups)
+//            {
+//                for (auto &user_group : userinfo->groups)
+//                {
+//                    if (group.compare(user_group) == 0 && config->cloud_username.compare(std::string(username_local) + config->local_username_suffix) == 0)
+//                    {
+//                        // One of the users IRIS IAM groups matches one of the project groups, and they are trying to login with a valid username
+//                        return true;
+//                    }
+//                }
+//            }
+//        }
+//        catch (json::exception &e)
+//        {
+//            syslog(LOG_AUTH|LOG_DEBUG, "caught a JSON exception 2");
+//            syslog(LOG_AUTH|LOG_DEBUG, e.what());
+//            throw ResponseError();
+//        }
+//    }
 
     // Try to authorize againt group name in userinfo
     if (config->group_access)
@@ -525,8 +563,10 @@ PAM_EXTERN int pam_sm_authenticate(pam_handle_t *pamh, int flags, int argc, cons
 
     try
     {
-        if (pam_get_user(pamh, &username_local, "Username: ") != PAM_SUCCESS)
+        if (pam_get_user(pamh, &username_local, "Username: ") != PAM_SUCCESS){
+            syslog(LOG_AUTH|LOG_DEBUG, "pam_get_user failed");
             throw PamError();
+	}
         make_authorization_request(
             config,
             config.client_id.c_str(), config.client_secret.c_str(),
@@ -542,18 +582,22 @@ PAM_EXTERN int pam_sm_authenticate(pam_handle_t *pamh, int flags, int argc, cons
     }
     catch (PamError &e)
     {
+	syslog(LOG_AUTH|LOG_DEBUG, e.what());
         return PAM_SYSTEM_ERR;
     }
     catch (TimeoutError &e)
     {
+	syslog(LOG_AUTH|LOG_DEBUG, e.what());
         return PAM_AUTH_ERR;
     }
     catch (NetworkError &e)
     {
+	syslog(LOG_AUTH|LOG_DEBUG, e.what());
         return PAM_AUTH_ERR;
     }
 
     if (is_authorized(&config, username_local, &userinfo))
         return PAM_SUCCESS;
+    syslog(LOG_AUTH|LOG_DEBUG, "Not authorized");
     return PAM_AUTH_ERR;
 }
